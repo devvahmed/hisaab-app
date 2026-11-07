@@ -8,11 +8,8 @@ import {
   AlertCircle,
   CheckCircle2,
   Calendar,
-  ChevronDown,
   Plus,
-  ArrowRight,
-  TrendingUp,
-  Receipt
+  ArrowRight
 } from 'lucide-react';
 import { useInstallment } from '@/context/InstallmentContext';
 import { SummaryCard } from '@/components/ui/SummaryCard';
@@ -24,12 +21,11 @@ import { AddClientModal } from '@/components/clients/AddClientModal';
 import { AddPaymentModal } from '@/components/payments/AddPaymentModal';
 
 export default function DashboardPage() {
-  const { stats, payments, clients } = useInstallment();
+  const { stats, payments, selectedDateRange } = useInstallment();
   const [isAddClientOpen, setIsAddClientOpen] = useState(false);
   const [isAddPaymentOpen, setIsAddPaymentOpen] = useState(false);
-  const [dateRange, setDateRange] = useState('Apr 1, 2025 - Apr 30, 2025');
 
-  // Filter 5 recent payments for the dashboard table
+  // Take the 5 most recent payments for the dashboard preview table
   const recentPayments = payments.slice(0, 5);
 
   return (
@@ -46,11 +42,10 @@ export default function DashboardPage() {
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Date Range Filter Button */}
+          {/* Synchronized Date Range Badge (Single source of truth with Navbar) */}
           <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-xs font-semibold text-slate-700 shadow-2xs">
-            <Calendar className="w-4 h-4 text-slate-400" />
-            <span>{dateRange}</span>
-            <ChevronDown className="w-3.5 h-3.5 text-slate-400 ml-1" />
+            <Calendar className="w-4 h-4 text-blue-600 shrink-0" />
+            <span>{selectedDateRange}</span>
           </div>
 
           {/* Quick Actions */}
@@ -74,7 +69,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* 4 Pastel Summary Cards (Exact Match to Reference Image) */}
+      {/* 4 Pastel Summary Cards (Derived Dynamically from Centralized State) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
         {/* Total Clients */}
         <SummaryCard
@@ -130,22 +125,26 @@ export default function DashboardPage() {
               Payment Overview
             </h2>
             <p className="text-xs text-slate-400 mt-0.5">
-              Current month collection and clearance distribution
+              Installment clearance & verification status across all active records
             </p>
           </div>
 
-          <div className="my-auto py-4">
+          <div className="my-auto py-2">
             <DonutChart
               paid={stats.chart.paid}
               pending={stats.chart.pending}
               overdue={stats.chart.overdue}
-              total={stats.chart.total}
+              paidAmount={stats.chart.paidAmount}
+              pendingAmount={stats.chart.pendingAmount}
+              overdueAmount={stats.chart.overdueAmount}
             />
           </div>
 
           <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-            <span>Overall Collection Rate</span>
-            <span className="font-bold text-emerald-600">63% Cleared</span>
+            <span>Overall Cleared Volume</span>
+            <span className="font-bold text-emerald-600">
+              {formatCurrency(stats.totalCollectedAmount)}
+            </span>
           </div>
         </div>
 
@@ -157,7 +156,7 @@ export default function DashboardPage() {
                 Recent Payments
               </h2>
               <p className="text-xs text-slate-400 mt-0.5">
-                Latest client installments and receipts
+                Latest client installments and verification vouchers
               </p>
             </div>
 
@@ -231,4 +230,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-

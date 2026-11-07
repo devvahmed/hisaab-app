@@ -10,21 +10,21 @@ import {
   Trash2,
   ChevronLeft,
   ChevronRight,
-  Filter,
   FileSpreadsheet,
   FileCheck,
   FileImage,
   FolderOpen
 } from 'lucide-react';
 import { useInstallment } from '@/context/InstallmentContext';
-import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { formatDate } from '@/lib/utils';
 import { DocumentType } from '@/types';
 import { UploadDocumentModal } from '@/components/documents/UploadDocumentModal';
+import { Modal } from '@/components/ui/Modal';
 
 export default function DocumentsPage() {
-  const { documents, clients, deleteDocument } = useInstallment();
+  const { documents, clients, deleteDocument, showToast } = useInstallment();
+  const [previewDoc, setPreviewDoc] = useState<(typeof documents)[0] | null>(null);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState('All');
@@ -213,14 +213,14 @@ export default function DocumentsPage() {
                     <td className="py-4 px-5 text-right whitespace-nowrap">
                       <div className="flex items-center justify-end gap-1.5">
                         <button
-                          onClick={() => alert(`Viewing file: ${doc.fileName}`)}
+                          onClick={() => setPreviewDoc(doc)}
                           className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
                           title="Preview Document"
                         >
                           <Eye className="w-4 h-4" />
                         </button>
                         <button
-                          onClick={() => alert(`Downloading file: ${doc.fileName}`)}
+                          onClick={() => showToast('Download Started', `Downloading ${doc.fileName} (${doc.fileSize})...`, 'info')}
                           className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
                           title="Download Document"
                         >
@@ -301,6 +301,59 @@ export default function DocumentsPage() {
         isOpen={isUploadModalOpen}
         onClose={() => setIsUploadModalOpen(false)}
       />
+
+      {/* Document Preview Modal */}
+      {previewDoc && (
+        <Modal
+          isOpen={!!previewDoc}
+          onClose={() => setPreviewDoc(null)}
+          title={`Document Preview: ${previewDoc.fileName}`}
+          description={`Category: ${previewDoc.documentType} • File Size: ${previewDoc.fileSize}`}
+          maxWidth="md"
+        >
+          <div className="space-y-4 text-xs">
+            <div className="p-8 bg-slate-50 rounded-2xl border border-slate-200 text-center space-y-3">
+              <div className="w-16 h-16 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto">
+                {getDocTypeIcon(previewDoc.documentType)}
+              </div>
+              <div>
+                <h4 className="font-bold text-sm text-slate-800">{previewDoc.fileName}</h4>
+                <p className="text-xs text-slate-400 mt-1">
+                  Associated with: <strong className="text-slate-700">{previewDoc.clientName}</strong>
+                </p>
+                <p className="text-[11px] text-slate-400">
+                  Uploaded on {formatDate(previewDoc.uploadDate)} • {previewDoc.fileSize}
+                </p>
+              </div>
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-semibold border border-emerald-200">
+                <FileCheck className="w-3.5 h-3.5" />
+                <span>Verified Legal Document</span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setPreviewDoc(null)}
+              >
+                Close
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                icon={<Download className="w-3.5 h-3.5" />}
+                onClick={() => {
+                  showToast('Download Complete', `${previewDoc.fileName} saved to device.`, 'success');
+                  setPreviewDoc(null);
+                }}
+              >
+                Download File
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

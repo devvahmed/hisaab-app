@@ -1,8 +1,19 @@
 'use client';
 
-import React, { createContext, useContext, useState } from 'react';
-import { Client, Payment, DocumentItem, ToastMessage, PaymentStatus } from '@/types';
+import React, { createContext, useContext, useState, useMemo } from 'react';
+import { Client, Payment, DocumentItem, ToastMessage, PaymentStatus, ClientStatus } from '@/types';
 import { INITIAL_CLIENTS, INITIAL_PAYMENTS, INITIAL_DOCUMENTS } from '@/lib/mock-data';
+
+interface DonutChartData {
+  paid: number;
+  pending: number;
+  overdue: number;
+  total: number;
+  paidAmount: number;
+  pendingAmount: number;
+  overdueAmount: number;
+  totalAmount: number;
+}
 
 interface InstallmentContextType {
   clients: Client[];
@@ -10,40 +21,41 @@ interface InstallmentContextType {
   documents: DocumentItem[];
   toasts: ToastMessage[];
   unreadNotificationCount: number;
-  addClient: (client: Omit<Client, 'id' | 'remainingAmount' | 'paidAmount' | 'paidInstallments'> & { initialDeposit?: number }) => void;
-  updateClient: (id: string, client: Partial<Client>) => void;
+  selectedDateRange: string;
+  setSelectedDateRange: (range: string) => void;
+  addClient: (clientData: Omit<Client, 'id' | 'remainingAmount' | 'paidAmount' | 'paidInstallments'> & { initialDeposit?: number }) => void;
+  updateClient: (id: string, clientData: Partial<Client>) => void;
   deleteClient: (id: string) => void;
   getClientById: (id: string) => Client | undefined;
-  addPayment: (payment: Omit<Payment, 'id' | 'receiptNumber'>) => void;
+  addPayment: (paymentData: Omit<Payment, 'id' | 'receiptNumber'>) => void;
   updatePaymentStatus: (id: string, status: PaymentStatus, isVerified: boolean) => void;
-  addDocument: (document: Omit<DocumentItem, 'id' | 'uploadDate'>) => void;
+  deletePayment: (id: string) => void;
+  addDocument: (documentData: Omit<DocumentItem, 'id' | 'uploadDate'>) => void;
   deleteDocument: (id: string) => void;
   showToast: (title: string, message?: string, type?: ToastMessage['type']) => void;
   dismissToast: (id: string) => void;
-  // Summary Stats
+  // Dynamic Real-Time Statistics
   stats: {
     totalClients: number;
     pendingPaymentsCount: number;
     overduePaymentsCount: number;
     recentPaymentsCount: number;
     totalCollectedAmount: number;
-    chart: {
-      paid: number;
-      pending: number;
-      overdue: number;
-      total: number;
-    };
+    totalPendingAmount: number;
+    totalOverdueAmount: number;
+    chart: DonutChartData;
   };
 }
 
 const InstallmentContext = createContext<InstallmentContextType | undefined>(undefined);
 
 export function InstallmentProvider({ children }: { children: React.ReactNode }) {
-  const [clients, setClients] = useState<Client[]>(INITIAL_CLIENTS);
+  const [rawClients, setRawClients] = useState<Client[]>(INITIAL_CLIENTS);
   const [payments, setPayments] = useState<Payment[]>(INITIAL_PAYMENTS);
   const [documents, setDocuments] = useState<DocumentItem[]>(INITIAL_DOCUMENTS);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [unreadNotificationCount] = useState<number>(3);
+  const [selectedDateRange, setSelectedDateRange] = useState<string>('Apr 1, 2025 - Apr 30, 2025');
 
   const showToast = (title: string, message?: string, type: ToastMessage['type'] = 'success') => {
     const id = `toast-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
@@ -59,24 +71,70 @@ export function InstallmentProvider({ children }: { children: React.ReactNode })
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
+  // Compute live financial balances for all clients based strictly on confirmed payments
+  const clients: Client[] = useMemo(() => {
+    return rawClients.map((client) => {
+      // Confirmed Paid payments ONLY
+      const confirmedPaid = payments
+        .filter((p) => p.clientId === client.id && p.status === 'Paid' && p.isVerified)
+        .reduce((sum, p) => sum + p.amount, 0);
+
+      // Remaining Amount must equal Total Amount minus confirmed payments
+      // Math.max(0, ...) strictly prevents negative balance
+      const remaining = Math.max(0, client.totalAmount - confirmedPaid);
+
+      // Count of confirmed installments
+      const confirmedInstallments = payments.filter(
+        (p) => p.clientId === client.id && p.status === 'Paid' && p.isVerified
+      ).length;
+
+      // Status check
+      const hasOverdue = payments.some(
+        (p) => p.clientId === client.id && p.status === 'Overdue'
+      );
+      const hasPending = payments.some(
+        (p) => p.clientId === client.id && p.status === 'Pending'
+      );
+
+      let status: ClientStatus = client.status;
+      if (remaining === 0 && client.totalAmount > 0) {
+        status = 'Completed';
+      } else if (hasOverdue) {
+        status = 'Overdue';
+      } else if (hasPending && status !== 'Overdue') {
+        status = 'Pending';
+      } else if (status !== 'Completed') {
+        status = 'Active';
+      }
+
+      return {
+        ...client,
+        paidAmount: confirmedPaid,
+        remainingAmount: remaining,
+        paidInstallments: Math.max(client.paidInstallments, confirmedInstallments),
+        status
+      };
+    });
+  }, [rawClients, payments]);
+
   const addClient = (data: Omit<Client, 'id' | 'remainingAmount' | 'paidAmount' | 'paidInstallments'> & { initialDeposit?: number }) => {
-    const initialDeposit = data.initialDeposit || 0;
-    const paidAmount = initialDeposit;
-    const remainingAmount = Math.max(0, data.totalAmount - paidAmount);
-    const paidInstallments = initialDeposit > 0 ? 1 : 0;
     const newId = `cli-${Date.now()}`;
+    const initialDeposit = data.initialDeposit || 0;
+    const paidAmount = initialDeposit > 0 ? initialDeposit : 0;
+    const remainingAmount = Math.max(0, data.totalAmount - paidAmount);
 
     const newClient: Client = {
       ...data,
       id: newId,
       paidAmount,
       remainingAmount,
-      paidInstallments,
+      paidInstallments: initialDeposit > 0 ? 1 : 0,
       status: data.status || 'Active'
     };
 
-    setClients((prev) => [newClient, ...prev]);
+    setRawClients((prev) => [newClient, ...prev]);
 
+    // If an initial deposit was entered, record it as a confirmed payment immediately
     if (initialDeposit > 0) {
       const initialPayment: Payment = {
         id: `pay-${Date.now()}`,
@@ -88,37 +146,40 @@ export function InstallmentProvider({ children }: { children: React.ReactNode })
         paymentDate: data.bookingDate,
         method: 'Bank Transfer',
         status: 'Paid',
-        reference: 'BOOKING-DEPOSIT',
-        receiptNumber: `REC-${Date.now().toString().slice(-4)}`,
+        reference: 'INITIAL-BOOKING-DEP',
+        receiptNumber: `REC-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`,
         isVerified: true,
         notes: 'Initial booking deposit payment'
       };
       setPayments((prev) => [initialPayment, ...prev]);
     }
 
-    showToast('Client Added Successfully', `${data.name} has been enrolled in ${data.property}.`, 'success');
+    showToast('Client Registered', `${data.name} was added to ${data.property}.`, 'success');
   };
 
   const updateClient = (id: string, updatedData: Partial<Client>) => {
-    setClients((prev) =>
+    setRawClients((prev) =>
       prev.map((c) => {
         if (c.id === id) {
           const merged = { ...c, ...updatedData };
-          if (updatedData.totalAmount !== undefined || updatedData.paidAmount !== undefined) {
-            merged.remainingAmount = Math.max(0, merged.totalAmount - (merged.paidAmount || 0));
+          if (updatedData.totalAmount !== undefined) {
+            merged.remainingAmount = Math.max(0, merged.totalAmount - merged.paidAmount);
           }
           return merged;
         }
         return c;
       })
     );
-    showToast('Client Updated', 'Client records updated successfully.', 'info');
+    showToast('Client Updated', 'Client records were updated successfully.', 'info');
   };
 
   const deleteClient = (id: string) => {
-    const target = clients.find((c) => c.id === id);
-    setClients((prev) => prev.filter((c) => c.id !== id));
-    showToast('Client Removed', target ? `${target.name} was removed.` : 'Client deleted.', 'info');
+    const target = rawClients.find((c) => c.id === id);
+    setRawClients((prev) => prev.filter((c) => c.id !== id));
+    // Also remove associated payments and documents for consistent data integrity
+    setPayments((prev) => prev.filter((p) => p.clientId !== id));
+    setDocuments((prev) => prev.filter((d) => d.clientId !== id));
+    showToast('Client Removed', target ? `${target.name} and associated records deleted.` : 'Client removed.', 'info');
   };
 
   const getClientById = (id: string) => {
@@ -137,31 +198,10 @@ export function InstallmentProvider({ children }: { children: React.ReactNode })
 
     setPayments((prev) => [newPayment, ...prev]);
 
-    // If verified or Paid, update client ledger
-    if (newPayment.status === 'Paid') {
-      setClients((prev) =>
-        prev.map((c) => {
-          if (c.id === newPayment.clientId) {
-            const newPaid = c.paidAmount + newPayment.amount;
-            const newRemaining = Math.max(0, c.totalAmount - newPaid);
-            const isCompleted = newRemaining === 0;
-            return {
-              ...c,
-              paidAmount: newPaid,
-              remainingAmount: newRemaining,
-              paidInstallments: c.paidInstallments + 1,
-              status: isCompleted ? 'Completed' : c.status === 'Overdue' ? 'Active' : c.status
-            };
-          }
-          return c;
-        })
-      );
-    }
-
     showToast(
-      'Payment Recorded',
+      newPayment.status === 'Paid' && newPayment.isVerified ? 'Payment Confirmed' : 'Payment Recorded (Pending Audit)',
       `${paymentData.clientName} - Rs. ${paymentData.amount.toLocaleString('en-PK')} (${paymentData.status})`,
-      paymentData.status === 'Paid' ? 'success' : 'warning'
+      newPayment.status === 'Paid' ? 'success' : 'warning'
     );
   };
 
@@ -169,48 +209,23 @@ export function InstallmentProvider({ children }: { children: React.ReactNode })
     setPayments((prev) =>
       prev.map((p) => {
         if (p.id === id) {
-          const wasPaid = p.status === 'Paid';
-          const isNowPaid = status === 'Paid';
-
-          // Adjust client if transitioning to/from Paid
-          if (!wasPaid && isNowPaid) {
-            setClients((clientPrev) =>
-              clientPrev.map((c) => {
-                if (c.id === p.clientId) {
-                  const newPaid = c.paidAmount + p.amount;
-                  return {
-                    ...c,
-                    paidAmount: newPaid,
-                    remainingAmount: Math.max(0, c.totalAmount - newPaid),
-                    paidInstallments: c.paidInstallments + 1
-                  };
-                }
-                return c;
-              })
-            );
-          } else if (wasPaid && !isNowPaid) {
-            setClients((clientPrev) =>
-              clientPrev.map((c) => {
-                if (c.id === p.clientId) {
-                  const newPaid = Math.max(0, c.paidAmount - p.amount);
-                  return {
-                    ...c,
-                    paidAmount: newPaid,
-                    remainingAmount: c.totalAmount - newPaid,
-                    paidInstallments: Math.max(0, c.paidInstallments - 1)
-                  };
-                }
-                return c;
-              })
-            );
-          }
-
-          return { ...p, status, isVerified };
+          return {
+            ...p,
+            status,
+            isVerified,
+            paymentDate: status === 'Paid' && !p.paymentDate ? new Date().toISOString().split('T')[0] : p.paymentDate
+          };
         }
         return p;
       })
     );
-    showToast('Payment Status Updated', `Payment marked as ${status}.`, 'info');
+    showToast('Verification Updated', `Payment status changed to ${status}.`, 'info');
+  };
+
+  const deletePayment = (id: string) => {
+    const target = payments.find((p) => p.id === id);
+    setPayments((prev) => prev.filter((p) => p.id !== id));
+    showToast('Payment Deleted', target ? `Receipt ${target.receiptNumber} removed.` : 'Payment record deleted.', 'info');
   };
 
   const addDocument = (documentData: Omit<DocumentItem, 'id' | 'uploadDate'>) => {
@@ -229,28 +244,44 @@ export function InstallmentProvider({ children }: { children: React.ReactNode })
     showToast('Document Deleted', target ? `${target.fileName} removed.` : 'Document removed.', 'info');
   };
 
-  // Calculate live statistics
-  // Reference figures: Total Clients: 124, Pending: 18, Overdue: 7, Recent: 12
-  // Paid: 78 (63%), Pending: 39 (31%), Overdue: 7 (6%)
-  const totalClients = Math.max(124, clients.length + 114);
-  const pendingPaymentsCount = payments.filter((p) => p.status === 'Pending').length + 16;
-  const overduePaymentsCount = payments.filter((p) => p.status === 'Overdue').length + 5;
-  const recentPaymentsCount = payments.length + 4;
-  const totalCollectedAmount = payments.filter((p) => p.status === 'Paid').reduce((acc, curr) => acc + curr.amount, 0);
+  // DYNAMIC STATISTICS: 100% computed from the actual centralized state!
+  const stats = useMemo(() => {
+    const totalClientsCount = clients.length;
 
-  const stats = {
-    totalClients,
-    pendingPaymentsCount,
-    overduePaymentsCount,
-    recentPaymentsCount,
-    totalCollectedAmount,
-    chart: {
-      paid: 78,
-      pending: 39,
-      overdue: 7,
-      total: 124
-    }
-  };
+    const paidPayments = payments.filter((p) => p.status === 'Paid');
+    const pendingPayments = payments.filter((p) => p.status === 'Pending');
+    const overduePayments = payments.filter((p) => p.status === 'Overdue');
+
+    const paidCount = paidPayments.length;
+    const pendingCount = pendingPayments.length;
+    const overdueCount = overduePayments.length;
+    const totalPaymentsCount = paidCount + pendingCount + overdueCount;
+
+    const totalCollectedAmount = paidPayments.reduce((sum, p) => sum + p.amount, 0);
+    const totalPendingAmount = pendingPayments.reduce((sum, p) => sum + p.amount, 0);
+    const totalOverdueAmount = overduePayments.reduce((sum, p) => sum + p.amount, 0);
+    const totalVolumeAmount = totalCollectedAmount + totalPendingAmount + totalOverdueAmount;
+
+    return {
+      totalClients: totalClientsCount,
+      pendingPaymentsCount: pendingCount,
+      overduePaymentsCount: overdueCount,
+      recentPaymentsCount: paidCount,
+      totalCollectedAmount,
+      totalPendingAmount,
+      totalOverdueAmount,
+      chart: {
+        paid: paidCount,
+        pending: pendingCount,
+        overdue: overdueCount,
+        total: totalPaymentsCount,
+        paidAmount: totalCollectedAmount,
+        pendingAmount: totalPendingAmount,
+        overdueAmount: totalOverdueAmount,
+        totalAmount: totalVolumeAmount
+      }
+    };
+  }, [clients, payments]);
 
   return (
     <InstallmentContext.Provider
@@ -260,12 +291,15 @@ export function InstallmentProvider({ children }: { children: React.ReactNode })
         documents,
         toasts,
         unreadNotificationCount,
+        selectedDateRange,
+        setSelectedDateRange,
         addClient,
         updateClient,
         deleteClient,
         getClientById,
         addPayment,
         updatePaymentStatus,
+        deletePayment,
         addDocument,
         deleteDocument,
         showToast,
@@ -285,4 +319,3 @@ export function useInstallment() {
   }
   return context;
 }
-

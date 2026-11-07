@@ -1,11 +1,11 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { useInstallment } from '@/context/InstallmentContext';
 import { DocumentType } from '@/types';
-import { UploadCloud, File, CheckCircle2 } from 'lucide-react';
+import { UploadCloud, CheckCircle2 } from 'lucide-react';
 
 interface UploadDocumentModalProps {
   isOpen: boolean;
@@ -16,20 +16,12 @@ interface UploadDocumentModalProps {
 export function UploadDocumentModal({ isOpen, onClose, defaultClientId }: UploadDocumentModalProps) {
   const { clients, addDocument } = useInstallment();
 
-  const [selectedClientId, setSelectedClientId] = useState<string>(defaultClientId || '');
+  const [selectedClientId, setSelectedClientId] = useState<string>(defaultClientId || clients[0]?.id || '');
   const [docType, setDocType] = useState<DocumentType>('CNIC');
   const [fileName, setFileName] = useState<string>('');
   const [fileSize, setFileSize] = useState<string>('1.8 MB');
 
-  useEffect(() => {
-    if (defaultClientId) {
-      setSelectedClientId(defaultClientId);
-    } else if (clients.length > 0 && !selectedClientId) {
-      setSelectedClientId(clients[0].id);
-    }
-  }, [defaultClientId, clients, selectedClientId]);
-
-  const selectedClient = clients.find((c) => c.id === selectedClientId);
+  const selectedClient = clients.find((c) => c.id === selectedClientId) || clients[0];
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
