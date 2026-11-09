@@ -4,30 +4,26 @@ import React, { useState, useMemo } from 'react';
 import {
   Search,
   Plus,
-  Filter,
   CheckCircle2,
   AlertCircle,
   Clock,
-  CreditCard,
-  Calendar,
   ChevronLeft,
   ChevronRight,
   Eye,
   Check,
   Trash2,
-  Printer,
-  X
+  Printer
 } from 'lucide-react';
 import { useInstallment } from '@/context/InstallmentContext';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { formatCurrency, formatDate } from '@/lib/utils';
-import { Payment, PaymentStatus } from '@/types';
+import { Payment } from '@/types';
 import { AddPaymentModal } from '@/components/payments/AddPaymentModal';
 
 export default function PaymentsPage() {
-  const { payments, updatePaymentStatus } = useInstallment();
+  const { payments, updatePaymentStatus, deletePayment, stats } = useInstallment();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
@@ -50,9 +46,16 @@ export default function PaymentsPage() {
       const matchesStatus =
         statusFilter === 'All' || p.status === statusFilter;
 
-      return matchesSearch && matchesStatus;
+      const activeDate = p.paymentDate || p.dueDate;
+      const matchesDate =
+        dateFilter === 'All' ||
+        (dateFilter === 'CurrentMonth' && activeDate.startsWith('2025-04')) ||
+        (dateFilter === 'LastMonth' && activeDate.startsWith('2025-03')) ||
+        (dateFilter === 'Year' && activeDate.startsWith('2025'));
+
+      return matchesSearch && matchesStatus && matchesDate;
     });
-  }, [payments, searchQuery, statusFilter]);
+  }, [payments, searchQuery, statusFilter, dateFilter]);
 
   // Pagination
   const totalPages = Math.ceil(filteredPayments.length / pageSize) || 1;
@@ -61,13 +64,15 @@ export default function PaymentsPage() {
     return filteredPayments.slice(start, start + pageSize);
   }, [filteredPayments, currentPage, pageSize]);
 
-  // Aggregate stats
-  const totalPaid = payments
-    .filter((p) => p.status === 'Paid')
-    .reduce((sum, p) => sum + p.amount, 0);
+  const handleDelete = (id: string, receiptNum: string) => {
+    if (confirm(`Are you sure you want to delete payment receipt ${receiptNum}?`)) {
+      deletePayment(id);
+    }
+  };
 
-  const pendingCount = payments.filter((p) => p.status === 'Pending').length;
-  const overdueCount = payments.filter((p) => p.status === 'Overdue').length;
+  const handlePrint = () => {
+    window.print();
+  };
 
   return (
     <div className="space-y-6">
@@ -92,12 +97,14 @@ export default function PaymentsPage() {
         </Button>
       </div>
 
-      {/* Summary Stat Strip */}
+      {/* Summary Stat Strip (Dynamic from centralized stats) */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-white p-4 rounded-xl border border-slate-200/80 shadow-2xs flex items-center justify-between">
           <div>
             <span className="text-xs text-slate-400 font-medium">Total Paid Collection</span>
-            <p className="text-xl font-bold text-emerald-600 mt-0.5">{formatCurrency(totalPaid)}</p>
+            <p className="text-xl font-bold text-emerald-600 mt-0.5">
+              {formatCurrency(stats.totalCollectedAmount)}
+            </p>
           </div>
           <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
             <CheckCircle2 className="w-5 h-5" />
@@ -107,7 +114,9 @@ export default function PaymentsPage() {
         <div className="bg-white p-4 rounded-xl border border-slate-200/80 shadow-2xs flex items-center justify-between">
           <div>
             <span className="text-xs text-slate-400 font-medium">Pending Verification</span>
-            <p className="text-xl font-bold text-amber-600 mt-0.5">{pendingCount} Payments</p>
+            <p className="text-xl font-bold text-amber-600 mt-0.5">
+              {stats.pendingPaymentsCount} Payments
+            </p>
           </div>
           <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
             <Clock className="w-5 h-5" />
@@ -117,7 +126,9 @@ export default function PaymentsPage() {
         <div className="bg-white p-4 rounded-xl border border-slate-200/80 shadow-2xs flex items-center justify-between">
           <div>
             <span className="text-xs text-slate-400 font-medium">Overdue Installments</span>
-            <p className="text-xl font-bold text-rose-600 mt-0.5">{overdueCount} Critical</p>
+            <p className="text-xl font-bold text-rose-600 mt-0.5">
+              {stats.overduePaymentsCount} Critical
+            </p>
           </div>
           <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center">
             <AlertCircle className="w-5 h-5" />
@@ -163,7 +174,10 @@ export default function PaymentsPage() {
           <div className="w-1/2 md:w-44">
             <select
               value={dateFilter}
-              onChange={(e) => setDateFilter(e.target.value)}
+              onChange={(e) => {
+                setDateFilter(e.target.value);
+                setCurrentPage(1);
+              }}
               className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all"
             >
               <option value="All">All Dates</option>
@@ -198,7 +212,7 @@ export default function PaymentsPage() {
                     <td className="py-4 px-5">
                       <div className="font-bold text-slate-900">{payment.clientName}</div>
                       <div className="text-[11px] text-slate-400 mt-0.5">
-                        {payment.property} • <span className="font-mono text-blue-600">{payment.receiptNumber}</span>
+                        {payment.property} • <span className="font-mono text-blue-600 font-semibold">{payment.receiptNumber}</span>
                       </div>
                     </td>
 
@@ -250,9 +264,17 @@ export default function PaymentsPage() {
                         <button
                           onClick={() => setReceiptPayment(payment)}
                           className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
-                          title="View Receipt"
+                          title="View Receipt Voucher"
                         >
                           <Eye className="w-4 h-4" />
+                        </button>
+
+                        <button
+                          onClick={() => handleDelete(payment.id, payment.receiptNumber)}
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                          title="Delete Payment Record"
+                        >
+                          <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
                     </td>
@@ -321,7 +343,7 @@ export default function PaymentsPage() {
         onClose={() => setIsAddPaymentOpen(false)}
       />
 
-      {/* Payment Receipt Modal */}
+      {/* Payment Receipt Voucher Modal */}
       {receiptPayment && (
         <Modal
           isOpen={!!receiptPayment}
@@ -331,7 +353,7 @@ export default function PaymentsPage() {
           maxWidth="md"
         >
           <div className="space-y-4 text-xs">
-            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-3">
+            <div className="p-5 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-3.5 print:bg-white print:border-none">
               <div className="flex items-center justify-between pb-3 border-b border-slate-200">
                 <div>
                   <h4 className="font-bold text-sm text-slate-900">PropertyInstallment</h4>
@@ -362,6 +384,13 @@ export default function PaymentsPage() {
                 </div>
               </div>
 
+              {receiptPayment.screenshotName && (
+                <div className="p-2.5 bg-blue-50/50 rounded-xl border border-blue-100 flex items-center justify-between text-[11px]">
+                  <span className="text-slate-500">Deposit Proof Attached:</span>
+                  <span className="font-mono font-bold text-blue-700">{receiptPayment.screenshotName}</span>
+                </div>
+              )}
+
               <div className="pt-3 border-t border-slate-200 flex items-center justify-between">
                 <div>
                   <span className="text-slate-400 block">Amount Paid</span>
@@ -369,15 +398,20 @@ export default function PaymentsPage() {
                     {formatCurrency(receiptPayment.amount)}
                   </span>
                 </div>
-                <Badge status={receiptPayment.status} />
+                <div className="flex flex-col items-end">
+                  <Badge status={receiptPayment.status} />
+                  <span className="text-[10px] text-slate-400 mt-1 font-medium">
+                    {receiptPayment.isVerified ? '✓ Verified in Bank' : '⚠ Pending Dealer Verification'}
+                  </span>
+                </div>
               </div>
             </div>
 
             <div className="flex items-center justify-between pt-2">
               <button
                 type="button"
-                onClick={() => alert('Printing payment voucher...')}
-                className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900"
+                onClick={handlePrint}
+                className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 hover:text-blue-600 transition-colors"
               >
                 <Printer className="w-4 h-4" />
                 <span>Print Receipt</span>
@@ -397,4 +431,3 @@ export default function PaymentsPage() {
     </div>
   );
 }
-

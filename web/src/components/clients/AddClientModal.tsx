@@ -5,7 +5,10 @@ import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { useInstallment } from '@/context/InstallmentContext';
 import { formatCurrency } from '@/lib/utils';
-import { Calculator, AlertCircle } from 'lucide-react';
+import { Calculator } from 'lucide-react';
+
+const DEFAULT_BOOKING_DATE = '2025-04-01';
+const DEFAULT_START_DATE = '2025-05-01';
 
 interface AddClientModalProps {
   isOpen: boolean;
@@ -28,8 +31,8 @@ export function AddClientModal({ isOpen, onClose }: AddClientModalProps) {
     totalAmount: 1200000,
     monthlyInstallment: 25000,
     initialDeposit: 200000,
-    bookingDate: new Date().toISOString().split('T')[0],
-    installmentStartDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    bookingDate: DEFAULT_BOOKING_DATE,
+    installmentStartDate: DEFAULT_START_DATE,
     notes: ''
   });
 
@@ -50,6 +53,8 @@ export function AddClientModal({ isOpen, onClose }: AddClientModalProps) {
     if (!formData.plotNo.trim()) newErrors.plotNo = 'Plot or Unit number is required';
     if (formData.totalAmount <= 0) newErrors.totalAmount = 'Total amount must be greater than 0';
     if (formData.monthlyInstallment <= 0) newErrors.monthlyInstallment = 'Monthly installment must be greater than 0';
+    if (formData.initialDeposit > formData.totalAmount) newErrors.initialDeposit = 'Deposit cannot exceed total amount';
+    if (formData.monthlyInstallment > formData.totalAmount) newErrors.monthlyInstallment = 'Monthly installment cannot exceed total amount';
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };

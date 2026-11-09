@@ -23,11 +23,10 @@ interface NavbarProps {
 }
 
 export function Navbar({ onOpenMobileMenu }: NavbarProps) {
-  const { unreadNotificationCount } = useInstallment();
+  const { unreadNotificationCount, selectedDateRange, setSelectedDateRange } = useInstallment();
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showDateDropdown, setShowDateDropdown] = useState(false);
-  const [selectedRange, setSelectedRange] = useState('Apr 1, 2025 - Apr 30, 2025');
 
   const notifRef = useRef<HTMLDivElement>(null);
   const userRef = useRef<HTMLDivElement>(null);
@@ -108,7 +107,7 @@ export function Navbar({ onOpenMobileMenu }: NavbarProps) {
             className="flex items-center gap-2.5 px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
           >
             <Calendar className="w-4 h-4 text-slate-400" />
-            <span>{selectedRange}</span>
+            <span>{selectedDateRange}</span>
             <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
           </button>
 
@@ -118,11 +117,11 @@ export function Navbar({ onOpenMobileMenu }: NavbarProps) {
                 <button
                   key={range}
                   onClick={() => {
-                    setSelectedRange(range);
+                    setSelectedDateRange(range);
                     setShowDateDropdown(false);
                   }}
                   className={`w-full text-left px-4 py-2 hover:bg-slate-50 transition-colors ${
-                    selectedRange === range ? 'text-[#2563EB] font-bold bg-blue-50/50' : 'text-slate-700'
+                    selectedDateRange === range ? 'text-[#2563EB] font-bold bg-blue-50/50' : 'text-slate-700'
                   }`}
                 >
                   {range}

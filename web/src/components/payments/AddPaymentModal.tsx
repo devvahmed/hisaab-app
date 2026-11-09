@@ -1,12 +1,12 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { useInstallment } from '@/context/InstallmentContext';
 import { PaymentMethod, PaymentStatus } from '@/types';
 import { formatCurrency } from '@/lib/utils';
-import { UploadCloud, CheckCircle2, AlertCircle, FileText, Image as ImageIcon } from 'lucide-react';
+import { UploadCloud, CheckCircle2, AlertCircle, Image as ImageIcon } from 'lucide-react';
 
 interface AddPaymentModalProps {
   isOpen: boolean;
@@ -17,10 +17,13 @@ interface AddPaymentModalProps {
 export function AddPaymentModal({ isOpen, onClose, defaultClientId }: AddPaymentModalProps) {
   const { clients, addPayment } = useInstallment();
 
-  const [selectedClientId, setSelectedClientId] = useState<string>(defaultClientId || '');
-  const [amount, setAmount] = useState<number>(25000);
-  const [dueDate, setDueDate] = useState<string>(new Date().toISOString().split('T')[0]);
-  const [paymentDate, setPaymentDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const initialClientId = defaultClientId || clients[0]?.id || '';
+  const initialClient = clients.find((c) => c.id === initialClientId);
+
+  const [selectedClientId, setSelectedClientId] = useState<string>(initialClientId);
+  const [amount, setAmount] = useState<number>(initialClient?.monthlyInstallment || 25000);
+  const [dueDate, setDueDate] = useState<string>('2025-04-28');
+  const [paymentDate, setPaymentDate] = useState<string>('2025-04-28');
   const [method, setMethod] = useState<PaymentMethod>('Bank Transfer');
   const [status, setStatus] = useState<PaymentStatus>('Paid');
   const [reference, setReference] = useState<string>('');
@@ -28,24 +31,15 @@ export function AddPaymentModal({ isOpen, onClose, defaultClientId }: AddPayment
   const [uploadedFileName, setUploadedFileName] = useState<string>('');
   const [isVerified, setIsVerified] = useState<boolean>(true);
 
-  // Update client when defaultClientId changes or when client is chosen
-  useEffect(() => {
-    if (defaultClientId) {
-      setSelectedClientId(defaultClientId);
-    } else if (clients.length > 0 && !selectedClientId) {
-      setSelectedClientId(clients[0].id);
+  const handleClientSelect = (clientId: string) => {
+    setSelectedClientId(clientId);
+    const found = clients.find((c) => c.id === clientId);
+    if (found) {
+      setAmount(found.monthlyInstallment);
     }
-  }, [defaultClientId, clients, selectedClientId]);
+  };
 
-  // When client changes, auto-fill default installment amount
-  useEffect(() => {
-    const selectedClient = clients.find((c) => c.id === selectedClientId);
-    if (selectedClient) {
-      setAmount(selectedClient.monthlyInstallment);
-    }
-  }, [selectedClientId, clients]);
-
-  const selectedClient = clients.find((c) => c.id === selectedClientId);
+  const selectedClient = clients.find((c) => c.id === selectedClientId) || initialClient;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -92,7 +86,7 @@ export function AddPaymentModal({ isOpen, onClose, defaultClientId }: AddPayment
           </label>
           <select
             value={selectedClientId}
-            onChange={(e) => setSelectedClientId(e.target.value)}
+            onChange={(e) => handleClientSelect(e.target.value)}
             className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 outline-none font-medium"
             required
           >

@@ -2,26 +2,17 @@
 
 import React, { useState, use } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import {
   ArrowLeft,
   Phone,
   Mail,
-  CreditCard,
   Building2,
-  Calendar,
   FileText,
   Plus,
-  CheckCircle,
-  AlertCircle,
-  Clock,
   Download,
   Eye,
-  Trash2,
   Edit2,
-  MapPin,
-  ShieldCheck,
-  FileCheck
+  ShieldCheck
 } from 'lucide-react';
 import { useInstallment } from '@/context/InstallmentContext';
 import { Badge } from '@/components/ui/Badge';
@@ -32,11 +23,10 @@ import { UploadDocumentModal } from '@/components/documents/UploadDocumentModal'
 import { EditClientModal } from '@/components/clients/EditClientModal';
 
 export default function ClientDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const router = useRouter();
   const resolvedParams = use(params);
   const clientId = resolvedParams.id;
 
-  const { clients, payments, documents, deleteClient } = useInstallment();
+  const { clients, payments, documents, showToast } = useInstallment();
   const [activeTab, setActiveTab] = useState<'overview' | 'payments' | 'documents'>('overview');
 
   const [isAddPaymentOpen, setIsAddPaymentOpen] = useState(false);
@@ -385,14 +375,14 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
 
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() => alert(`Previewing ${doc.fileName}`)}
+                      onClick={() => showToast('Previewing Document', `Opening ${doc.fileName}...`, 'info')}
                       className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 transition-colors"
                       title="View"
                     >
                       <Eye className="w-4 h-4" />
                     </button>
                     <button
-                      onClick={() => alert(`Downloading ${doc.fileName}`)}
+                      onClick={() => showToast('Download Started', `Downloading ${doc.fileName}...`, 'success')}
                       className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 transition-colors"
                       title="Download"
                     >

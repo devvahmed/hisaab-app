@@ -1,9 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Building2, Eye, EyeOff, Check, ArrowRight, ShieldCheck, Clock, Users } from 'lucide-react';
+import { Building2, Eye, EyeOff, Check } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 
 export default function LoginPage() {
@@ -13,6 +12,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('password123');
   const [rememberMe, setRememberMe] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -185,12 +185,18 @@ export default function LoginPage() {
 
               <button
                 type="button"
-                onClick={() => alert('Mock password reset instructions sent to your email.')}
+                onClick={() => setResetSent(true)}
                 className="text-[#2563EB] font-semibold hover:underline"
               >
                 Forgot password?
               </button>
             </div>
+
+            {resetSent && (
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-800">
+                Password reset instructions have been dispatched to your email address.
+              </div>
+            )}
 
             {/* Login Button */}
             <Button

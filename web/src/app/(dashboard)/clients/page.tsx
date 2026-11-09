@@ -6,22 +6,18 @@ import { useRouter } from 'next/navigation';
 import {
   Search,
   Plus,
-  Filter,
   Eye,
   Edit2,
   Trash2,
   ChevronLeft,
   ChevronRight,
-  Phone,
-  Building,
-  CreditCard,
   UserX
 } from 'lucide-react';
 import { useInstallment } from '@/context/InstallmentContext';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { formatCurrency } from '@/lib/utils';
-import { Client, ClientStatus } from '@/types';
+import { Client } from '@/types';
 import { AddClientModal } from '@/components/clients/AddClientModal';
 import { EditClientModal } from '@/components/clients/EditClientModal';
 
